@@ -27,3 +27,5 @@ Advanced MetaTrader 5 Expert Advisor with modular architecture, risk management,
 - **AverageBarsForTP** - Bars for average range calculation
 - **MagicNumber** - Unique identifier for orders
 - **AlwaysInMode** - Trading bias (Long/Short/Unclear)
+
+<img width="7171" height="1603" alt="deepseek_mermaid_20251130_737f79 (1)" src="https://github.com/user-attachments/assets/123538f4-4997-4475-bdd9-0c416c2037c4" />
