@@ -36,7 +36,6 @@ Advanced MetaTrader 5 Expert Advisor with modular architecture, risk management,
 
 ## 🎨 User Interface Design
 ## Control Panel Layout
-[deepseek_text_20251130_3f1398.txt](https://github.com/user-attachments/files/23842173/deepseek_text_20251130_3f1398.txt)
 ┌─────────────────────────────────┐
 │        Advanced EA v1.0         │
 ├─────────────────────────────────┤
@@ -111,27 +110,3 @@ Stop Loss > Previous High	SELL LIMIT	Previous Bar High
 Average Range = (Sum of (High - Low) for last X bars) / X
 BUY Orders: TP = Entry Price + Average Range
 SELL Orders: TP = Entry Price - Average Range
-
-## 🔧 Technical Specifications
-input double   StopLossPrice = 0.0;        // Stop Loss Price
-input double   PreferredRisk = 50.0;       // Risk in $
-input int      AverageBarsForTP = 5;       // Bars for ATR calculation
-input int      MagicNumber = 12345;        // Order identification
-input string   TradeComment = "AdvancedEA"; // Order comment
-input ENUM_ALWAYS_IN_MODE AlwaysInMode;    // Trading bias
-
-## Global Variables
-// Trading Objects
-CTrade trade;
-CPositionInfo positionInfo;
-COrderInfo orderInfo;
-
-// UI Elements
-CChartObjectButton buttons[5];  // All control buttons
-
-// State Management
-bool monitoringEnabled;
-int lastBarTime;
-double currentStopLossPrice;
-double currentPreferredRisk;
-int currentAverageBarsForTP;
