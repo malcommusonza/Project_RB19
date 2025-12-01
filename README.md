@@ -1,4 +1,4 @@
-# Project RB19 - Advanced Trading EA
+![deepseek_mermaid_20251130_b1a726](https://github.com/user-attachments/assets/adf36a10-c260-4841-9dfa-ccd16212ec03)# Project RB19 - Advanced Trading EA
 
 ## Overview
 Advanced MetaTrader 5 Expert Advisor with modular architecture, risk management, and GUI control panel.
@@ -27,3 +27,25 @@ Advanced MetaTrader 5 Expert Advisor with modular architecture, risk management,
 - **AverageBarsForTP** - Bars for average range calculation
 - **MagicNumber** - Unique identifier for orders
 - **AlwaysInMode** - Trading bias (Long/Short/Unclear)
+
+## 🎯 Overall System Architecture
+<img width="7171" height="1603" alt="deepseek_mermaid_20251130_737f79 (1)" src="https://github.com/user-attachments/assets/123538f4-4997-4475-bdd9-0c416c2037c4" />
+
+## 📊 Detailed Component Flowchart
+<img width="8577" height="10050" alt="deepseek_mermaid_20251130_fe5ba1" src="https://github.com/user-attachments/assets/3065d1f9-ff14-4a35-a447-87b21ae81277" />
+
+## ⚙️ Core System Components
+
+## 1. Trading Engine (CTrade Wrapper)
+<img width="3366" height="231" alt="deepseek_mermaid_20251130_cfc4f0" src="https://github.com/user-attachments/assets/e012f5a8-d18b-4295-8e23-c66844326101" />
+
+## 2. Risk Management System
+<img width="4194" height="1683" alt="deepseek_mermaid_20251130_f271aa" src="https://github.com/user-attachments/assets/2935312c-d20b-4000-8eff-0192da8ccb13" />
+
+
+## 3. Market Analysis Engine
+<img width="3496" height="3117" alt="deepseek_mermaid_20251130_bf2e87" src="https://github.com/user-attachments/assets/66865d72-14e9-45a3-94e2-f90149147d6a" />
+
+## 4. Order Management System
+<img width="4853" height="2448" alt="deepseek_mermaid_20251130_5f9ae3" src="https://github.com/user-attachments/assets/e242b229-894d-41e0-8565-bf6f681e1537" />
+
