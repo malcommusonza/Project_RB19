@@ -18,49 +18,120 @@ public:
         return true;
     }
     
-    double CalculatePositionSize(ENUM_ORDER_TYPE orderType, double entryPrice, double slPrice)
+    bool ValidatePositionSizeParameters(ENUM_ORDER_TYPE orderType, double entryPrice, double slPrice)
     {
-        double riskAmount = m_preferredRisk;
-        
-        if(riskAmount <= 0) 
+        if(m_preferredRisk <= 0)
         {
-            Print("Error: Preferred Risk must be greater than 0");
-            return 0;
+            Print("Error: Preferred risk must be positive");
+            return false;
         }
         
-        // Calculate risk in points
-        double riskPoints;
-        if(orderType == ORDER_TYPE_BUY_LIMIT || orderType == ORDER_TYPE_BUY)
+        if(entryPrice <= 0 || slPrice <= 0)
         {
-            riskPoints = MathAbs(entryPrice - slPrice) / _Point;
-        }
-        else
-        {
-            riskPoints = MathAbs(slPrice - entryPrice) / _Point;
+            Print("Error: Invalid price levels");
+            return false;
         }
         
-        if(riskPoints == 0)
+        // Check SL position relative to entry
+        if((orderType == ORDER_TYPE_BUY_LIMIT || orderType == ORDER_TYPE_BUY) && slPrice >= entryPrice)
         {
-            Print("Error: Risk in points is zero");
-            return 0;
+            Print("Error: For BUY orders, SL must be below entry");
+            return false;
         }
         
-        // Calculate point value
-        double pointValue = CalculatePointValue(orderType, entryPrice);
-        
-        if(pointValue <= 0)
+        if((orderType == ORDER_TYPE_SELL_LIMIT || orderType == ORDER_TYPE_SELL) && slPrice <= entryPrice)
         {
-            Print("Error: Cannot calculate point value");
-            return 0;
+            Print("Error: For SELL orders, SL must be above entry");
+            return false;
         }
         
-        // Calculate position size
-        double riskPerLot = riskPoints * pointValue;
-        double lots = riskAmount / riskPerLot;
-        
-        // Normalize lots
-        return NormalizeLots(lots);
+        return true;
     }
+    
+double CalculatePositionSize(ENUM_ORDER_TYPE orderType, double entryPrice, double slPrice)
+{
+    double riskAmount = m_preferredRisk;
+    
+    // Validate inputs
+    if(riskAmount <= 0 || entryPrice <= 0 || slPrice <= 0)
+    {
+        Print("Error: Invalid input parameters for position size calculation");
+        Print("  Risk Amount: $", riskAmount);
+        Print("  Entry Price: ", entryPrice);
+        Print("  Stop Loss: ", slPrice);
+        return 0;
+    }
+    
+    // Calculate stop distance in points
+    double stopDistancePoints;
+    if(orderType == ORDER_TYPE_BUY_LIMIT || orderType == ORDER_TYPE_BUY)
+    {
+        stopDistancePoints = (entryPrice - slPrice) / _Point;
+    }
+    else if(orderType == ORDER_TYPE_SELL_LIMIT || orderType == ORDER_TYPE_SELL)
+    {
+        stopDistancePoints = (slPrice - entryPrice) / _Point;
+    }
+    else
+    {
+        Print("Error: Invalid order type for position size calculation");
+        return 0;
+    }
+    
+    if(stopDistancePoints <= 0)
+    {
+        Print("Error: Stop distance must be positive");
+        Print("  Entry: ", entryPrice);
+        Print("  SL: ", slPrice);
+        Print("  Distance in points: ", stopDistancePoints);
+        return 0;
+    }
+    
+    // Calculate point value
+    double pointValue = CalculatePointValue(orderType, entryPrice);
+    
+    if(pointValue <= 0)
+    {
+        Print("Error: Invalid point value calculated: ", pointValue);
+        return 0;
+    }
+    
+    // Calculate value at risk per lot
+    double riskPerLot = stopDistancePoints * pointValue;
+    
+    // Debug output
+    Print("Position Size Calculation:");
+    Print("  Preferred Risk: $", riskAmount);
+    Print("  Stop Distance: ", stopDistancePoints, " points");
+    Print("  Point Value: $", pointValue);
+    Print("  Risk per Lot: $", riskPerLot);
+    
+    if(riskPerLot <= 0)
+    {
+        Print("Error: Risk per lot is zero or negative");
+        return 0;
+    }
+    
+    // Calculate lots needed
+    double lots = riskAmount / riskPerLot;
+    
+    // Normalize and validate lots
+    lots = NormalizeLots(lots);
+    
+    Print("  Calculated Lots: ", lots);
+    
+    // Validate final risk
+    double actualRisk = lots * riskPerLot;
+    Print("  Actual Risk: $", actualRisk);
+    
+    // Check for significant discrepancy
+    if(MathAbs(actualRisk - riskAmount) > 0.01 * riskAmount && riskAmount > 0)
+    {
+        Print("Warning: Actual risk ($", actualRisk, ") differs from preferred ($", riskAmount, ")");
+    }
+    
+    return lots;
+}
     
     double CalculateTakeProfitFromATR(ENUM_ORDER_TYPE orderType, double entryPrice)
     {
@@ -116,27 +187,68 @@ public:
 private:
     double CalculatePointValue(ENUM_ORDER_TYPE orderType, double price)
     {
-        double profit;
-        double point = _Point;
+        double pointValue = 0;
         
-        // Try to calculate profit for 1 lot with 1 point movement
-        if(OrderCalcProfit(orderType, Symbol(), 1.0, price, price + point, profit))
+        // Get contract size
+        double contractSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_CONTRACT_SIZE);
+        if(contractSize <= 0) contractSize = 100000; // Fallback for Forex
+        
+        // Calculate value per point
+        double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
+        double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
+        
+        if(tickSize > 0 && tickValue > 0)
         {
-            return MathAbs(profit);
+            // Correct calculation for point value
+            pointValue = tickValue * (_Point / tickSize);
+        }
+        else
+        {
+            // Fallback calculation
+            string accountCurrency = AccountInfoString(ACCOUNT_CURRENCY);
+            string baseCurrency = StringSubstr(Symbol(), 0, 3);
+            string quoteCurrency = StringSubstr(Symbol(), 3, 3);
+            
+            // For Forex pairs where quote currency matches account currency
+            if(quoteCurrency == accountCurrency)
+            {
+                pointValue = contractSize * _Point;
+            }
+            // For USD accounts with major pairs
+            else if(accountCurrency == "USD")
+            {
+                if(quoteCurrency == "USD")
+                {
+                    pointValue = contractSize * _Point; // USD/XXX
+                }
+                else if(baseCurrency == "USD")
+                {
+                    // USD/XXX where XXX is not USD
+                    pointValue = contractSize * _Point / price;
+                }
+                else
+                {
+                    // XXX/YYY where neither is USD
+                    // Need conversion
+                    string usdPair = "USD" + quoteCurrency;
+                    if(SymbolInfoDouble(usdPair, SYMBOL_BID) > 0)
+                    {
+                        double rate = SymbolInfoDouble(usdPair, SYMBOL_BID);
+                        pointValue = contractSize * _Point / rate;
+                    }
+                }
+            }
         }
         
-        // Fallback calculation
-        string accountCurrency = AccountInfoString(ACCOUNT_CURRENCY);
-        string symbol = Symbol();
+        // Debug output
+        Print("Point Value Calculation:");
+        Print("  Contract Size: ", contractSize);
+        Print("  Point: ", _Point);
+        Print("  Tick Size: ", tickSize);
+        Print("  Tick Value: ", tickValue);
+        Print("  Calculated Point Value: ", pointValue);
         
-        // For major USD pairs
-        if((StringFind(symbol, "USD") >= 0 && accountCurrency == "USD") ||
-           (StringFind(symbol, "EUR") >= 0 && StringSubstr(symbol, 3) == "USD" && accountCurrency == "USD"))
-        {
-            return 0.0001 / point * 1.0; // Approximation for USD accounts
-        }
-        
-        return 0.0001; // Conservative fallback
+        return MathMax(pointValue, 0.000001); // Prevent division by zero
     }
     
     double NormalizeLots(double lots)
