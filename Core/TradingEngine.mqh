@@ -142,43 +142,35 @@ public:
     }
     
     void PlaceLimitOrder()
+{
+    if(m_riskManager == NULL || m_orderManager == NULL)
     {
-        if(m_riskManager == NULL || m_orderManager == NULL)
-        {
-            Print("Error: RiskManager or OrderManager not initialized");
-            return;
-        }
+        Print("Error: RiskManager or OrderManager not initialized");
+        return;
+    }
+    
+    // Get previous bar information
+    double prevHigh = iHigh(Symbol(), Period(), 1);
+    double prevLow = iLow(Symbol(), Period(), 1);
+    
+    // Get current spread - FIXED with explicit cast
+    double spreadPoints = (double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD);
+    double spreadPrice = spreadPoints * _Point;
+    
+    // Determine order direction and price
+    ENUM_ORDER_TYPE orderType;
+    double limitPrice;
+    double slPrice = NormalizeDouble(m_currentStopLossPrice, _Digits);
+    
+    if(slPrice < prevLow)
+    {
+        // BUY LIMIT order (long position)
+        orderType = ORDER_TYPE_BUY_LIMIT;
         
-        // Get previous bar information
-        double prevHigh = iHigh(Symbol(), Period(), 1);
-        double prevLow = iLow(Symbol(), Period(), 1);
-        
-        // Determine order direction and price
-        ENUM_ORDER_TYPE orderType;
-        double limitPrice;
-        double slPrice = NormalizeDouble(m_currentStopLossPrice, _Digits);
-        
-        if(slPrice < prevLow)
-        {
-            // Buy limit at previous bar low
-            orderType = ORDER_TYPE_BUY_LIMIT;
-            limitPrice = prevLow;
-            Print("Setting BUY LIMIT at previous bar low: ", limitPrice);
-        }
-        else if(slPrice > prevHigh)
-        {
-            // Sell limit at previous bar high
-            orderType = ORDER_TYPE_SELL_LIMIT;
-            limitPrice = prevHigh;
-            Print("Setting SELL LIMIT at previous bar high: ", limitPrice);
-        }
-        else
-        {
-            Print("Error: Invalid Stop Loss position.");
-            Print("For BUY LIMIT: Stop Loss must be below previous bar low (", prevLow, ")");
-            Print("For SELL LIMIT: Stop Loss must be above previous bar high (", prevHigh, ")");
-            return;
-        }
+        // Adjust entry: previous bar low + spread
+        limitPrice = prevLow + spreadPrice;
+        Print("Setting BUY LIMIT at previous bar low + spread: ", prevLow, " + ", spreadPrice, " = ", limitPrice);
+        Print("Spread: ", spreadPoints, " points (", spreadPrice, " price units)");
         
         // Calculate take profit from ATR
         double tpPrice = m_riskManager.CalculateTakeProfitFromATR(orderType, limitPrice);
@@ -189,7 +181,13 @@ public:
             return;
         }
         
-        // Calculate position size
+        // Adjust TP for BUY: TP - spread
+        tpPrice = tpPrice - spreadPrice;
+        Print("Adjusted TP for BUY: Original TP ", (tpPrice + spreadPrice), " - spread ", spreadPrice, " = ", tpPrice);
+        
+        // SL remains the same for BUY orders
+        
+        // Recalculate position size with adjusted prices
         double positionSize = m_riskManager.CalculatePositionSize(orderType, limitPrice, slPrice);
         
         if(positionSize <= 0)
@@ -199,18 +197,18 @@ public:
         }
         
         // Display trade information
-        DisplayTradeInfo(orderType, limitPrice, slPrice, tpPrice, positionSize, "LIMIT");
+        DisplayTradeInfo(orderType, limitPrice, slPrice, tpPrice, positionSize, "LIMIT (BUY with spread adj)");
         
-        // Place limit order using MqlTradeRequest for better compatibility
+        // Place limit order
         MqlTradeRequest request = {};
         MqlTradeResult result = {};
         
         request.action = TRADE_ACTION_PENDING;
         request.symbol = Symbol();
         request.volume = positionSize;
-        request.price = limitPrice;
-        request.sl = slPrice;
-        request.tp = tpPrice;
+        request.price = NormalizeDouble(limitPrice, _Digits);
+        request.sl = NormalizeDouble(slPrice, _Digits);
+        request.tp = NormalizeDouble(tpPrice, _Digits);
         request.type = orderType;
         request.magic = m_magicNumber;
         request.comment = m_tradeComment;
@@ -219,13 +217,85 @@ public:
         // Send order
         if(OrderSend(request, result))
         {
-            Print("Limit order placed successfully!");
+            Print("BUY LIMIT order placed successfully with spread adjustments!");
         }
         else
         {
-            Print("Limit order placement failed. Error: ", GetLastError());
+            Print("BUY LIMIT order placement failed. Error: ", GetLastError());
         }
     }
+    else if(slPrice > prevHigh)
+    {
+        // SELL LIMIT order (short position)
+        orderType = ORDER_TYPE_SELL_LIMIT;
+        
+        // Entry remains at previous bar high (no adjustment for SELL limit)
+        limitPrice = prevHigh;
+        Print("Setting SELL LIMIT at previous bar high: ", limitPrice);
+        Print("Spread: ", spreadPoints, " points (", spreadPrice, " price units)");
+        
+        // Calculate take profit from ATR
+        double tpPrice = m_riskManager.CalculateTakeProfitFromATR(orderType, limitPrice);
+        
+        if(tpPrice <= 0)
+        {
+            Print("Error: Invalid Take Profit calculated");
+            return;
+        }
+        
+        // Adjust TP for SELL: TP + spread
+        tpPrice = tpPrice + spreadPrice;
+        Print("Adjusted TP for SELL: Original TP ", (tpPrice - spreadPrice), " + spread ", spreadPrice, " = ", tpPrice);
+        
+        // Adjust SL for SELL: SL + spread
+        double adjustedSlPrice = slPrice + spreadPrice;
+        Print("Adjusted SL for SELL: Original SL ", slPrice, " + spread ", spreadPrice, " = ", adjustedSlPrice);
+        
+        // Recalculate position size with adjusted prices
+        double positionSize = m_riskManager.CalculatePositionSize(orderType, limitPrice, adjustedSlPrice);
+        
+        if(positionSize <= 0)
+        {
+            Print("Error: Invalid position size calculated");
+            return;
+        }
+        
+        // Display trade information
+        DisplayTradeInfo(orderType, limitPrice, adjustedSlPrice, tpPrice, positionSize, "LIMIT (SELL with spread adj)");
+        
+        // Place limit order
+        MqlTradeRequest request = {};
+        MqlTradeResult result = {};
+        
+        request.action = TRADE_ACTION_PENDING;
+        request.symbol = Symbol();
+        request.volume = positionSize;
+        request.price = NormalizeDouble(limitPrice, _Digits);
+        request.sl = NormalizeDouble(adjustedSlPrice, _Digits);
+        request.tp = NormalizeDouble(tpPrice, _Digits);
+        request.type = orderType;
+        request.magic = m_magicNumber;
+        request.comment = m_tradeComment;
+        request.type_filling = ORDER_FILLING_FOK;
+        
+        // Send order
+        if(OrderSend(request, result))
+        {
+            Print("SELL LIMIT order placed successfully with spread adjustments!");
+        }
+        else
+        {
+            Print("SELL LIMIT order placement failed. Error: ", GetLastError());
+        }
+    }
+    else
+    {
+        Print("Error: Invalid Stop Loss position.");
+        Print("For BUY LIMIT: Stop Loss must be below previous bar low (", prevLow, ")");
+        Print("For SELL LIMIT: Stop Loss must be above previous bar high (", prevHigh, ")");
+        return;
+    }
+}
     
     void PlaceMarketOrder(ENUM_ORDER_TYPE orderType)
     {
