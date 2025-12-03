@@ -185,6 +185,8 @@ public:
                 m_tradingEngine.CancelAllLimitOrders();
             }
         }
+        
+        ChartRedraw(0);
     }
     
     void ToggleMarketMode()
@@ -203,6 +205,8 @@ public:
             ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
             Print("Market order mode DISABLED");
         }
+        
+        ChartRedraw(0);
     }
     
     void TurnOffBothModes()
