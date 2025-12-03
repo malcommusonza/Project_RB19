@@ -1,5 +1,7 @@
 // Project RB19 - Main Trading Engine
 #include <Trade/Trade.mqh>
+#include <Trade/PositionInfo.mqh>
+#include <Trade/OrderInfo.mqh>
 
 // Forward declarations for the missing classes
 class CRiskManager;
@@ -21,6 +23,11 @@ private:
     // Current values
     double m_currentStopLossPrice;
     ENUM_ALWAYS_IN_MODE m_alwaysInMode;
+    
+    // Position and Order checking
+    CPositionInfo m_positionInfo;
+    COrderInfo m_orderInfo;
+    CTrade m_trade;
     
 public:
     CTradingEngine() : 
@@ -44,13 +51,11 @@ public:
         return true;
     }
     
-    // Fixed method signatures - removed incorrect reference syntax
-    // In TradingEngine.mqh - change parameter names to avoid conflicts
     void SetRiskManager(CRiskManager* riskMgr) { m_riskManager = riskMgr; }
     void SetOrderManager(COrderManager* orderMgr) { m_orderManager = orderMgr; }
     void SetControlPanel(CControlPanel* controlPanelPtr) { m_controlPanel = controlPanelPtr; }
     
-        double GetCurrentATR()
+    double GetCurrentATR()
     {
         if(m_riskManager != NULL)
         {
@@ -58,8 +63,7 @@ public:
         }
         return 0;
     }
-
-    // Add Quick Adjust methods
+    
     void QuickAdjustSL()
     {
         if(m_orderManager != NULL)
@@ -85,13 +89,11 @@ public:
             Print("Error: OrderManager not available for QuickAdjustTP");
         }
     }
- 
+    
     void OnTick()
     {
-        if(m_controlPanel != NULL && m_controlPanel.IsMonitoringEnabled())
-        {
-            CheckForNewBar();
-        }
+        // Check for new bar
+        CheckForNewBar();
     }
     
     void CheckForNewBar()
@@ -101,12 +103,96 @@ public:
         if(currentBarTime != m_lastBarTime)
         {
             m_lastBarTime = (int)currentBarTime;
-            CheckMarketOrderConditions();
+            
+            // Check if we already have a position - if yes, turn off modes
+            if(HasOpenPosition())
+            {
+                if(m_controlPanel != NULL)
+                {
+                    m_controlPanel.TurnOffBothModes();
+                    CancelAllLimitOrders();
+                    Print("Position detected: Both modes turned OFF and limit orders cancelled");
+                }
+                return; // Don't place any new orders
+            }
+            
+            // No position exists, check modes
+            if(m_controlPanel != NULL && m_controlPanel.IsLimitModeEnabled())
+            {
+                CheckAndPlaceLimitOrderOnNewBar();
+            }
+            
+            if(m_controlPanel != NULL && m_controlPanel.IsMarketModeEnabled())
+            {
+                CheckMarketOrderConditions();
+            }
+        }
+    }
+    
+    void CheckAndPlaceLimitOrderOnNewBar()
+    {
+        // Cancel any existing limit orders
+        CancelAllLimitOrders();
+        
+        // Place new limit order
+        PlaceLimitOrder();
+    }
+    
+    bool HasOpenPosition()
+    {
+        // Check if there are any open positions with our magic number
+        int positions = PositionsTotal();
+        for(int i = 0; i < positions; i++)
+        {
+            if(m_positionInfo.SelectByIndex(i))
+            {
+                if(m_positionInfo.Magic() == m_magicNumber && 
+                   m_positionInfo.Symbol() == Symbol())
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    void CancelAllLimitOrders()
+    {
+        // Cancel all pending orders with our magic number
+        int orders = OrdersTotal();
+        for(int i = orders - 1; i >= 0; i--)
+        {
+            // Get order ticket
+            ulong orderTicket = OrderGetTicket(i);
+            if(orderTicket > 0)
+            {
+                // Get order properties
+                if(m_orderInfo.Select(orderTicket))
+                {
+                    if(m_orderInfo.Magic() == m_magicNumber && 
+                       m_orderInfo.Symbol() == Symbol() &&
+                       (m_orderInfo.OrderType() == ORDER_TYPE_BUY_LIMIT || 
+                        m_orderInfo.OrderType() == ORDER_TYPE_SELL_LIMIT))
+                    {
+                        if(m_trade.OrderDelete(orderTicket))
+                        {
+                            Print("Cancelled previous limit order: ", orderTicket);
+                        }
+                    }
+                }
+            }
         }
     }
     
     void CheckMarketOrderConditions()
     {
+        // First check if we already have a position
+        if(HasOpenPosition())
+        {
+            Print("Skipping market order: Already have an open position");
+            return;
+        }
+        
         double currentOpen = iOpen(Symbol(), Period(), 1);
         double currentClose = iClose(Symbol(), Period(), 1);
         double currentAsk = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
@@ -118,19 +204,16 @@ public:
         switch(m_alwaysInMode)
         {
             case ALWAYS_IN_LONG:
-                // Buy on bear bar or doji
                 if(currentClose <= currentOpen)
                     shouldBuy = true;
                 break;
                 
             case ALWAYS_IN_SHORT:
-                // Sell on bull bar or doji
                 if(currentClose >= currentOpen)
                     shouldSell = true;
                 break;
                 
             case ALWAYS_IN_UNCLEAR:
-                // Smart direction based on SL position
                 if(m_currentStopLossPrice < currentBid && currentClose <= currentOpen)
                     shouldBuy = true;
                 else if(m_currentStopLossPrice > currentAsk && currentClose >= currentOpen)
@@ -151,166 +234,177 @@ public:
     }
     
     void PlaceLimitOrder()
-{
-    if(m_riskManager == NULL || m_orderManager == NULL)
     {
-        Print("Error: RiskManager or OrderManager not initialized");
-        return;
-    }
-    
-    // Get previous bar information
-    double prevHigh = iHigh(Symbol(), Period(), 1);
-    double prevLow = iLow(Symbol(), Period(), 1);
-    
-    // Get current spread - FIXED with explicit cast
-    double spreadPoints = (double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD);
-    double spreadPrice = spreadPoints * _Point;
-    
-    // Determine order direction and price
-    ENUM_ORDER_TYPE orderType;
-    double limitPrice;
-    double slPrice = NormalizeDouble(m_currentStopLossPrice, _Digits);
-    
-    if(slPrice < prevLow)
-    {
-        // BUY LIMIT order (long position)
-        orderType = ORDER_TYPE_BUY_LIMIT;
-        
-        // Adjust entry: previous bar low + spread
-        limitPrice = prevLow + spreadPrice;
-        Print("Setting BUY LIMIT at previous bar low + spread: ", prevLow, " + ", spreadPrice, " = ", limitPrice);
-        Print("Spread: ", spreadPoints, " points (", spreadPrice, " price units)");
-        
-        // Calculate take profit from ATR
-        double tpPrice = m_riskManager.CalculateTakeProfitFromATR(orderType, limitPrice);
-        
-        if(tpPrice <= 0)
+        if(m_riskManager == NULL || m_orderManager == NULL)
         {
-            Print("Error: Invalid Take Profit calculated");
+            Print("Error: RiskManager or OrderManager not initialized");
             return;
         }
         
-        // Adjust TP for BUY: TP - spread
-        tpPrice = tpPrice - spreadPrice;
-        Print("Adjusted TP for BUY: Original TP ", (tpPrice + spreadPrice), " - spread ", spreadPrice, " = ", tpPrice);
-        
-        // SL remains the same for BUY orders
-        
-        // Recalculate position size with adjusted prices
-        double positionSize = m_riskManager.CalculatePositionSize(orderType, limitPrice, slPrice);
-        
-        if(positionSize <= 0)
+        // Check if we already have a position
+        if(HasOpenPosition())
         {
-            Print("Error: Invalid position size calculated");
+            Print("Cannot place limit order: Already have an open position");
             return;
         }
         
-        // Display trade information
-        DisplayTradeInfo(orderType, limitPrice, slPrice, tpPrice, positionSize, "LIMIT (BUY with spread adj)");
+        // Get previous bar information
+        double prevHigh = iHigh(Symbol(), Period(), 1);
+        double prevLow = iLow(Symbol(), Period(), 1);
         
-        // Place limit order
-        MqlTradeRequest request = {};
-        MqlTradeResult result = {};
+        // Get current spread
+        double spreadPoints = (double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD);
+        double spreadPrice = spreadPoints * _Point;
         
-        request.action = TRADE_ACTION_PENDING;
-        request.symbol = Symbol();
-        request.volume = positionSize;
-        request.price = NormalizeDouble(limitPrice, _Digits);
-        request.sl = NormalizeDouble(slPrice, _Digits);
-        request.tp = NormalizeDouble(tpPrice, _Digits);
-        request.type = orderType;
-        request.magic = m_magicNumber;
-        request.comment = m_tradeComment;
-        request.type_filling = ORDER_FILLING_FOK;
+        // Determine order direction and price
+        ENUM_ORDER_TYPE orderType;
+        double limitPrice;
+        double slPrice = NormalizeDouble(m_currentStopLossPrice, _Digits);
         
-        // Send order
-        if(OrderSend(request, result))
+        if(slPrice < prevLow)
         {
-            Print("BUY LIMIT order placed successfully with spread adjustments!");
+            // BUY LIMIT order (long position)
+            orderType = ORDER_TYPE_BUY_LIMIT;
+            
+            // Adjust entry: previous bar low + spread
+            limitPrice = prevLow + spreadPrice;
+            Print("Auto-placing BUY LIMIT at previous bar low + spread: ", prevLow, " + ", spreadPrice, " = ", limitPrice);
+            Print("Spread: ", spreadPoints, " points (", spreadPrice, " price units)");
+            
+            // Calculate take profit from ATR
+            double tpPrice = m_riskManager.CalculateTakeProfitFromATR(orderType, limitPrice);
+            
+            if(tpPrice <= 0)
+            {
+                Print("Error: Invalid Take Profit calculated");
+                return;
+            }
+            
+            // Adjust TP for BUY: TP - spread
+            tpPrice = tpPrice - spreadPrice;
+            Print("Adjusted TP for BUY: Original TP ", (tpPrice + spreadPrice), " - spread ", spreadPrice, " = ", tpPrice);
+            
+            // Recalculate position size with adjusted prices
+            double positionSize = m_riskManager.CalculatePositionSize(orderType, limitPrice, slPrice);
+            
+            if(positionSize <= 0)
+            {
+                Print("Error: Invalid position size calculated");
+                return;
+            }
+            
+            // Display trade information
+            DisplayTradeInfo(orderType, limitPrice, slPrice, tpPrice, positionSize, "AUTO LIMIT (BUY)");
+            
+            // Place limit order
+            MqlTradeRequest request = {};
+            MqlTradeResult result = {};
+            
+            request.action = TRADE_ACTION_PENDING;
+            request.symbol = Symbol();
+            request.volume = positionSize;
+            request.price = NormalizeDouble(limitPrice, _Digits);
+            request.sl = NormalizeDouble(slPrice, _Digits);
+            request.tp = NormalizeDouble(tpPrice, _Digits);
+            request.type = orderType;
+            request.magic = m_magicNumber;
+            request.comment = m_tradeComment;
+            request.type_filling = ORDER_FILLING_FOK;
+            
+            // Send order
+            if(OrderSend(request, result))
+            {
+                Print("BUY LIMIT order auto-placed successfully!");
+            }
+            else
+            {
+                Print("BUY LIMIT order placement failed. Error: ", GetLastError());
+            }
+        }
+        else if(slPrice > prevHigh)
+        {
+            // SELL LIMIT order (short position)
+            orderType = ORDER_TYPE_SELL_LIMIT;
+            
+            // Entry remains at previous bar high
+            limitPrice = prevHigh;
+            Print("Auto-placing SELL LIMIT at previous bar high: ", limitPrice);
+            Print("Spread: ", spreadPoints, " points (", spreadPrice, " price units)");
+            
+            // Calculate take profit from ATR
+            double tpPrice = m_riskManager.CalculateTakeProfitFromATR(orderType, limitPrice);
+            
+            if(tpPrice <= 0)
+            {
+                Print("Error: Invalid Take Profit calculated");
+                return;
+            }
+            
+            // Adjust TP for SELL: TP + spread
+            tpPrice = tpPrice + spreadPrice;
+            Print("Adjusted TP for SELL: Original TP ", (tpPrice - spreadPrice), " + spread ", spreadPrice, " = ", tpPrice);
+            
+            // Adjust SL for SELL: SL + spread
+            double adjustedSlPrice = slPrice + spreadPrice;
+            Print("Adjusted SL for SELL: Original SL ", slPrice, " + spread ", spreadPrice, " = ", adjustedSlPrice);
+            
+            // Recalculate position size with adjusted prices
+            double positionSize = m_riskManager.CalculatePositionSize(orderType, limitPrice, adjustedSlPrice);
+            
+            if(positionSize <= 0)
+            {
+                Print("Error: Invalid position size calculated");
+                return;
+            }
+            
+            // Display trade information
+            DisplayTradeInfo(orderType, limitPrice, adjustedSlPrice, tpPrice, positionSize, "AUTO LIMIT (SELL)");
+            
+            // Place limit order
+            MqlTradeRequest request = {};
+            MqlTradeResult result = {};
+            
+            request.action = TRADE_ACTION_PENDING;
+            request.symbol = Symbol();
+            request.volume = positionSize;
+            request.price = NormalizeDouble(limitPrice, _Digits);
+            request.sl = NormalizeDouble(adjustedSlPrice, _Digits);
+            request.tp = NormalizeDouble(tpPrice, _Digits);
+            request.type = orderType;
+            request.magic = m_magicNumber;
+            request.comment = m_tradeComment;
+            request.type_filling = ORDER_FILLING_FOK;
+            
+            // Send order
+            if(OrderSend(request, result))
+            {
+                Print("SELL LIMIT order auto-placed successfully!");
+            }
+            else
+            {
+                Print("SELL LIMIT order placement failed. Error: ", GetLastError());
+            }
         }
         else
         {
-            Print("BUY LIMIT order placement failed. Error: ", GetLastError());
+            Print("Cannot place limit order: Invalid Stop Loss position.");
+            Print("For BUY LIMIT: Stop Loss must be below previous bar low (", prevLow, ")");
+            Print("For SELL LIMIT: Stop Loss must be above previous bar high (", prevHigh, ")");
         }
     }
-    else if(slPrice > prevHigh)
-    {
-        // SELL LIMIT order (short position)
-        orderType = ORDER_TYPE_SELL_LIMIT;
-        
-        // Entry remains at previous bar high (no adjustment for SELL limit)
-        limitPrice = prevHigh;
-        Print("Setting SELL LIMIT at previous bar high: ", limitPrice);
-        Print("Spread: ", spreadPoints, " points (", spreadPrice, " price units)");
-        
-        // Calculate take profit from ATR
-        double tpPrice = m_riskManager.CalculateTakeProfitFromATR(orderType, limitPrice);
-        
-        if(tpPrice <= 0)
-        {
-            Print("Error: Invalid Take Profit calculated");
-            return;
-        }
-        
-        // Adjust TP for SELL: TP + spread
-        tpPrice = tpPrice + spreadPrice;
-        Print("Adjusted TP for SELL: Original TP ", (tpPrice - spreadPrice), " + spread ", spreadPrice, " = ", tpPrice);
-        
-        // Adjust SL for SELL: SL + spread
-        double adjustedSlPrice = slPrice + spreadPrice;
-        Print("Adjusted SL for SELL: Original SL ", slPrice, " + spread ", spreadPrice, " = ", adjustedSlPrice);
-        
-        // Recalculate position size with adjusted prices
-        double positionSize = m_riskManager.CalculatePositionSize(orderType, limitPrice, adjustedSlPrice);
-        
-        if(positionSize <= 0)
-        {
-            Print("Error: Invalid position size calculated");
-            return;
-        }
-        
-        // Display trade information
-        DisplayTradeInfo(orderType, limitPrice, adjustedSlPrice, tpPrice, positionSize, "LIMIT (SELL with spread adj)");
-        
-        // Place limit order
-        MqlTradeRequest request = {};
-        MqlTradeResult result = {};
-        
-        request.action = TRADE_ACTION_PENDING;
-        request.symbol = Symbol();
-        request.volume = positionSize;
-        request.price = NormalizeDouble(limitPrice, _Digits);
-        request.sl = NormalizeDouble(adjustedSlPrice, _Digits);
-        request.tp = NormalizeDouble(tpPrice, _Digits);
-        request.type = orderType;
-        request.magic = m_magicNumber;
-        request.comment = m_tradeComment;
-        request.type_filling = ORDER_FILLING_FOK;
-        
-        // Send order
-        if(OrderSend(request, result))
-        {
-            Print("SELL LIMIT order placed successfully with spread adjustments!");
-        }
-        else
-        {
-            Print("SELL LIMIT order placement failed. Error: ", GetLastError());
-        }
-    }
-    else
-    {
-        Print("Error: Invalid Stop Loss position.");
-        Print("For BUY LIMIT: Stop Loss must be below previous bar low (", prevLow, ")");
-        Print("For SELL LIMIT: Stop Loss must be above previous bar high (", prevHigh, ")");
-        return;
-    }
-}
     
     void PlaceMarketOrder(ENUM_ORDER_TYPE orderType)
     {
         if(m_riskManager == NULL || m_orderManager == NULL)
         {
             Print("Error: RiskManager or OrderManager not initialized");
+            return;
+        }
+        
+        // Check if we already have a position
+        if(HasOpenPosition())
+        {
+            Print("Cannot place market order: Already have an open position");
             return;
         }
         
@@ -341,6 +435,7 @@ public:
         DisplayTradeInfo(orderType, entryPrice, slPrice, tpPrice, positionSize, "MARKET");
         
         CTrade* trade = m_orderManager.GetTrade();
+        bool orderSuccess = false;
         
         // Execute market order
         if(orderType == ORDER_TYPE_BUY)
@@ -348,7 +443,7 @@ public:
             if(trade.Buy(positionSize, Symbol(), entryPrice, slPrice, tpPrice, m_tradeComment))
             {
                 Print("BUY Market Order executed successfully");
-                m_orderManager.CancelNonEssentialPendingOrders();
+                orderSuccess = true;
             }
             else
             {
@@ -360,11 +455,24 @@ public:
             if(trade.Sell(positionSize, Symbol(), entryPrice, slPrice, tpPrice, m_tradeComment))
             {
                 Print("SELL Market Order executed successfully");
-                m_orderManager.CancelNonEssentialPendingOrders();
+                orderSuccess = true;
             }
             else
             {
                 Print("SELL Market Order failed. Error: ", GetLastError());
+            }
+        }
+        
+        // If order was successful, cancel pending orders and turn off modes
+        if(orderSuccess)
+        {
+            m_orderManager.CancelNonEssentialPendingOrders();
+            
+            // Turn off both modes
+            if(m_controlPanel != NULL)
+            {
+                m_controlPanel.TurnOffBothModes();
+                Print("Market order filled: Both modes turned OFF");
             }
         }
     }
@@ -374,6 +482,13 @@ public:
         if(m_riskManager == NULL || m_orderManager == NULL)
         {
             Print("Error: RiskManager or OrderManager not initialized");
+            return;
+        }
+        
+        // Check if we already have a position
+        if(HasOpenPosition())
+        {
+            Print("Cannot place immediate market order: Already have an open position");
             return;
         }
         
@@ -387,14 +502,12 @@ public:
         // Determine direction based on SL position
         if(slPrice < currentBid)
         {
-            // BUY market order (SL below current price)
             orderType = ORDER_TYPE_BUY;
             entryPrice = currentAsk;
             Print("Placing Immediate BUY Market Order");
         }
         else if(slPrice > currentAsk)
         {
-            // SELL market order (SL above current price)
             orderType = ORDER_TYPE_SELL;
             entryPrice = currentBid;
             Print("Placing Immediate SELL Market Order");
@@ -428,6 +541,7 @@ public:
         DisplayTradeInfo(orderType, entryPrice, slPrice, tpPrice, positionSize, "IMMEDIATE MARKET");
         
         CTrade* trade = m_orderManager.GetTrade();
+        bool orderSuccess = false;
         
         // Execute market order
         if(orderType == ORDER_TYPE_BUY)
@@ -435,7 +549,7 @@ public:
             if(trade.Buy(positionSize, Symbol(), entryPrice, slPrice, tpPrice, m_tradeComment))
             {
                 Print("Immediate BUY Market Order executed successfully");
-                m_orderManager.CancelNonEssentialPendingOrders();
+                orderSuccess = true;
             }
             else
             {
@@ -447,11 +561,24 @@ public:
             if(trade.Sell(positionSize, Symbol(), entryPrice, slPrice, tpPrice, m_tradeComment))
             {
                 Print("Immediate SELL Market Order executed successfully");
-                m_orderManager.CancelNonEssentialPendingOrders();
+                orderSuccess = true;
             }
             else
             {
                 Print("Immediate SELL Market Order failed. Error: ", GetLastError());
+            }
+        }
+        
+        // If order was successful, cancel pending orders and turn off modes
+        if(orderSuccess)
+        {
+            m_orderManager.CancelNonEssentialPendingOrders();
+            
+            // Turn off both modes
+            if(m_controlPanel != NULL)
+            {
+                m_controlPanel.TurnOffBothModes();
+                Print("Immediate market order filled: Both modes turned OFF");
             }
         }
     }

@@ -8,27 +8,28 @@ class CTradingEngine;
 class CControlPanel
 {
 private:
-    CChartObjectButton m_btnPlaceLimit;
-    CChartObjectButton m_btnMonitorMarket;
+    CChartObjectButton m_btnLimitMode;
+    CChartObjectButton m_btnMarketMode;
     CChartObjectButton m_btnQuickAdjustSL;
     CChartObjectButton m_btnQuickAdjustTP;
     CChartObjectButton m_btnImmediateMarket;
     
-    // ATR Display Label - ADD THIS
+    // ATR Display Label
     CChartObjectLabel m_lblATR;
     
-    bool m_monitoringEnabled;
+    bool m_limitModeEnabled;
+    bool m_marketModeEnabled;
     
     // Reference to trading engine
     CTradingEngine* m_tradingEngine;
     
 public:
     CControlPanel() : 
-        m_monitoringEnabled(false),
+        m_limitModeEnabled(false),
+        m_marketModeEnabled(false),
         m_tradingEngine(NULL)
     {}
     
-    // FIX: Change parameter name to avoid conflict with global variable
     bool Initialize(CTradingEngine* enginePtr)
     {
         m_tradingEngine = enginePtr;
@@ -46,43 +47,41 @@ public:
         int x = PANEL_START_X;
         int y = PANEL_START_Y;
         
-        // Create Place Limit Order button
-        if(!m_btnPlaceLimit.Create(0, "btnPlaceLimit", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
+        // Create ATR Display Label at the TOP
+        if(!m_lblATR.Create(0, "lblATR", 0, x, y))
             return false;
-        m_btnPlaceLimit.Description("Place Limit Order");
-        m_btnPlaceLimit.Color(COLOR_BUTTON_WHITE);
-        m_btnPlaceLimit.FontSize(9);
-        ObjectSetInteger(0, "btnPlaceLimit", OBJPROP_BGCOLOR, COLOR_BUTTON_BLUE);
+        
+        m_lblATR.Description("ATR: Loading...");
+        m_lblATR.Color(clrBlue);
+        m_lblATR.FontSize(9);
+        ObjectSetInteger(0, "lblATR", OBJPROP_XSIZE, BUTTON_WIDTH);
+        ObjectSetInteger(0, "lblATR", OBJPROP_YSIZE, 20);
+        ObjectSetInteger(0, "lblATR", OBJPROP_ALIGN, ALIGN_LEFT);
+        ObjectSetInteger(0, "lblATR", OBJPROP_BGCOLOR, COLOR_PANEL_BACKGROUND);
+        ObjectSetInteger(0, "lblATR", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+        ObjectSetInteger(0, "lblATR", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, "lblATR", OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, "lblATR", OBJPROP_BACK, false);
+        
+        y += 25; // Space after ATR label
+        
+        // Create "Mode: Enter on Limit" button
+        if(!m_btnLimitMode.Create(0, "btnLimitMode", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
+            return false;
+        m_btnLimitMode.Description("Mode: Enter on Limit - OFF");
+        m_btnLimitMode.Color(COLOR_BUTTON_WHITE);
+        m_btnLimitMode.FontSize(9);
+        ObjectSetInteger(0, "btnLimitMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
         
         y += BUTTON_SPACING;
         
-        // Create Monitor Market Orders button
-        if(!m_btnMonitorMarket.Create(0, "btnMonitorMarket", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
+        // Create "Mode: Enter on Pullback" button (renamed from Monitor Market)
+        if(!m_btnMarketMode.Create(0, "btnMarketMode", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
             return false;
-        m_btnMonitorMarket.Description("Monitor Market - OFF");
-        m_btnMonitorMarket.Color(COLOR_BUTTON_WHITE);
-        m_btnMonitorMarket.FontSize(9);
-        ObjectSetInteger(0, "btnMonitorMarket", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
-        
-        y += BUTTON_SPACING;
-        
-        // Create Quick Adjust SL button
-        if(!m_btnQuickAdjustSL.Create(0, "btnQuickAdjustSL", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
-            return false;
-        m_btnQuickAdjustSL.Description("Quick Adjust SL");
-        m_btnQuickAdjustSL.Color(COLOR_BUTTON_WHITE);
-        m_btnQuickAdjustSL.FontSize(9);
-        ObjectSetInteger(0, "btnQuickAdjustSL", OBJPROP_BGCOLOR, COLOR_BUTTON_ORANGE);
-        
-        y += BUTTON_SPACING;
-        
-        // Create Quick Adjust TP button
-        if(!m_btnQuickAdjustTP.Create(0, "btnQuickAdjustTP", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
-            return false;
-        m_btnQuickAdjustTP.Description("Quick Adjust TP");
-        m_btnQuickAdjustTP.Color(COLOR_BUTTON_WHITE);
-        m_btnQuickAdjustTP.FontSize(9);
-        ObjectSetInteger(0, "btnQuickAdjustTP", OBJPROP_BGCOLOR, COLOR_BUTTON_ORANGE);
+        m_btnMarketMode.Description("Mode: Enter on Pullback - OFF");
+        m_btnMarketMode.Color(COLOR_BUTTON_WHITE);
+        m_btnMarketMode.FontSize(9);
+        ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
         
         y += BUTTON_SPACING;
         
@@ -96,24 +95,23 @@ public:
         
         y += BUTTON_SPACING;
         
-        // Create ATR Display Label - Use ObjectSet functions
-        if(!m_lblATR.Create(0, "lblATR", 0, x, y))
+        // Create Quick Adjust TP button
+        if(!m_btnQuickAdjustTP.Create(0, "btnQuickAdjustTP", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
             return false;
+        m_btnQuickAdjustTP.Description("Quick Adjust TP");
+        m_btnQuickAdjustTP.Color(COLOR_BUTTON_WHITE);
+        m_btnQuickAdjustTP.FontSize(9);
+        ObjectSetInteger(0, "btnQuickAdjustTP", OBJPROP_BGCOLOR, COLOR_BUTTON_ORANGE);
         
-        // Set label properties using ObjectSet functions
-        m_lblATR.Description("ATR: Loading...");
-        m_lblATR.Color(clrBlue);
-        m_lblATR.FontSize(9);
+        y += BUTTON_SPACING;
         
-        // Set size and other properties using ObjectSet functions
-        ObjectSetInteger(0, "lblATR", OBJPROP_XSIZE, BUTTON_WIDTH);
-        ObjectSetInteger(0, "lblATR", OBJPROP_YSIZE, 20);
-        ObjectSetInteger(0, "lblATR", OBJPROP_ALIGN, ALIGN_LEFT);
-        ObjectSetInteger(0, "lblATR", OBJPROP_BGCOLOR, COLOR_PANEL_BACKGROUND);
-        ObjectSetInteger(0, "lblATR", OBJPROP_BORDER_TYPE, BORDER_FLAT);
-        ObjectSetInteger(0, "lblATR", OBJPROP_CORNER, CORNER_LEFT_UPPER);
-        ObjectSetInteger(0, "lblATR", OBJPROP_SELECTABLE, false);
-        ObjectSetInteger(0, "lblATR", OBJPROP_BACK, false);
+        // Create Quick Adjust SL button
+        if(!m_btnQuickAdjustSL.Create(0, "btnQuickAdjustSL", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
+            return false;
+        m_btnQuickAdjustSL.Description("Quick Adjust SL");
+        m_btnQuickAdjustSL.Color(COLOR_BUTTON_WHITE);
+        m_btnQuickAdjustSL.FontSize(9);
+        ObjectSetInteger(0, "btnQuickAdjustSL", OBJPROP_BGCOLOR, COLOR_BUTTON_ORANGE);
         
         // Initial update of ATR display
         UpdateATRDisplay();
@@ -127,15 +125,15 @@ public:
         {
             if(m_tradingEngine == NULL) return;
             
-            if(sparam == "btnPlaceLimit")
+            if(sparam == "btnLimitMode")
             {
-                Print("Place Limit Order button clicked");
-                m_tradingEngine.PlaceLimitOrder();
+                Print("Limit Mode button clicked");
+                ToggleLimitMode();
             }
-            else if(sparam == "btnMonitorMarket")
+            else if(sparam == "btnMarketMode")
             {
-                Print("Monitor Market button clicked");
-                ToggleMarketMonitoring();
+                Print("Market Mode button clicked");
+                ToggleMarketMode();
             }
             else if(sparam == "btnQuickAdjustSL")
             {
@@ -155,49 +153,73 @@ public:
         }
         else if(id == CHARTEVENT_CHART_CHANGE)
         {
-            // Update ATR when chart changes (timeframe, symbol, etc.)
             UpdateATRDisplay();
         }
     }
     
-    void ToggleMarketMonitoring()
+    void ToggleLimitMode()
     {
-        m_monitoringEnabled = !m_monitoringEnabled;
+        m_limitModeEnabled = !m_limitModeEnabled;
         
-        if(m_monitoringEnabled)
+        if(m_limitModeEnabled)
         {
-            m_btnMonitorMarket.Description("Monitor Market - ON");
-            ObjectSetInteger(0, "btnMonitorMarket", OBJPROP_BGCOLOR, COLOR_BUTTON_GREEN);
-            Print("Market order monitoring ENABLED");
+            m_btnLimitMode.Description("Mode: Enter on Limit - ON");
+            ObjectSetInteger(0, "btnLimitMode", OBJPROP_BGCOLOR, COLOR_BUTTON_GREEN);
+            Print("Limit order mode ENABLED");
         }
         else
         {
-            m_btnMonitorMarket.Description("Monitor Market - OFF");
-            ObjectSetInteger(0, "btnMonitorMarket", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
-            Print("Market order monitoring DISABLED");
+            m_btnLimitMode.Description("Mode: Enter on Limit - OFF");
+            ObjectSetInteger(0, "btnLimitMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
+            Print("Limit order mode DISABLED");
         }
     }
     
-    bool IsMonitoringEnabled() { return m_monitoringEnabled; }
+    void ToggleMarketMode()
+    {
+        m_marketModeEnabled = !m_marketModeEnabled;
+        
+        if(m_marketModeEnabled)
+        {
+            m_btnMarketMode.Description("Mode: Enter on Pullback - ON");
+            ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_GREEN);
+            Print("Market order mode ENABLED");
+        }
+        else
+        {
+            m_btnMarketMode.Description("Mode: Enter on Pullback - OFF");
+            ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
+            Print("Market order mode DISABLED");
+        }
+    }
+    
+    void TurnOffBothModes()
+    {
+        if(m_limitModeEnabled)
+        {
+            m_limitModeEnabled = false;
+            m_btnLimitMode.Description("Mode: Enter on Limit - OFF");
+            ObjectSetInteger(0, "btnLimitMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
+            Print("Limit order mode turned OFF (position entered)");
+        }
+        
+        if(m_marketModeEnabled)
+        {
+            m_marketModeEnabled = false;
+            m_btnMarketMode.Description("Mode: Enter on Pullback - OFF");
+            ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
+            Print("Market order mode turned OFF (position entered)");
+        }
+    }
+    
+    bool IsLimitModeEnabled() const { return m_limitModeEnabled; }
+    bool IsMarketModeEnabled() const { return m_marketModeEnabled; }
     
     void UpdateStatusDisplay()
     {
-        if(m_monitoringEnabled)
-        {
-            m_btnMonitorMarket.Description("Monitor Market - ON");
-            ObjectSetInteger(0, "btnMonitorMarket", OBJPROP_BGCOLOR, COLOR_BUTTON_GREEN);
-        }
-        else
-        {
-            m_btnMonitorMarket.Description("Monitor Market - OFF");
-            ObjectSetInteger(0, "btnMonitorMarket", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
-        }
-        
-        // Also update ATR display
         UpdateATRDisplay();
     }
     
-    // Updated UpdateATRDisplay method
     void UpdateATRDisplay()
     {
         if(m_tradingEngine == NULL) 
@@ -206,14 +228,11 @@ public:
             return;
         }
         
-        // Get ATR from trading engine
         double atrValue = m_tradingEngine.GetCurrentATR();
         
-        // Format the ATR value for display
         string atrText;
         if(atrValue > 0)
         {
-            // Show ATR in both price units and points
             double atrPoints = atrValue / _Point;
             atrText = StringFormat("ATR: %.5f (%d pts)", atrValue, (int)atrPoints);
         }
@@ -227,11 +246,11 @@ public:
     
     void Cleanup()
     {
-        m_btnPlaceLimit.Delete();
-        m_btnMonitorMarket.Delete();
+        m_btnLimitMode.Delete();
+        m_btnMarketMode.Delete();
         m_btnQuickAdjustSL.Delete();
         m_btnQuickAdjustTP.Delete();
         m_btnImmediateMarket.Delete();
-        m_lblATR.Delete();  // Don't forget to delete the ATR label
+        m_lblATR.Delete();
     }
 };
