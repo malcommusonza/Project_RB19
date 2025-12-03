@@ -1,6 +1,7 @@
 ![deepseek_mermaid_20251130_b1a726](https://github.com/user-attachments/assets/adf36a10-c260-4841-9dfa-ccd16212ec03)
 
 #Project RB19 - Advanced Trading EA
+
 This trading signal generating module for this EA implements the following research:
 
 - **Moskowitz, T. J., Ooi, Y. H., & Pedersen, L. H. (2012). Time Series Momentum.** *Journal of Financial Economics, 104*(2), 228–250. [[DOI]](https://doi.org/10.1016/j.jfineco.2011.11.003)
