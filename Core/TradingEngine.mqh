@@ -49,6 +49,15 @@ public:
     void SetRiskManager(CRiskManager* riskMgr) { m_riskManager = riskMgr; }
     void SetOrderManager(COrderManager* orderMgr) { m_orderManager = orderMgr; }
     void SetControlPanel(CControlPanel* controlPanelPtr) { m_controlPanel = controlPanelPtr; }
+    
+        double GetCurrentATR()
+    {
+        if(m_riskManager != NULL)
+        {
+            return m_riskManager.GetCurrentATR();
+        }
+        return 0;
+    }
 
     // Add Quick Adjust methods
     void QuickAdjustSL()

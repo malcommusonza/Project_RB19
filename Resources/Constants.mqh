@@ -13,6 +13,14 @@
 #define COLOR_BUTTON_ORANGE clrOrange
 #define COLOR_BUTTON_PURPLE clrPurple
 #define COLOR_BUTTON_GREEN clrGreen
+#ifndef COLOR_TEXT_GRAY
+#define COLOR_TEXT_GRAY           C'180,180,180'    // Gray text color
+#endif
+
+#ifndef COLOR_PANEL_BACKGROUND
+#define COLOR_PANEL_BACKGROUND    clrBlack          // Panel background
+#endif
+
 
 // Trading Engine Constants
 #define DEFAULT_MAGIC_NUMBER 12345

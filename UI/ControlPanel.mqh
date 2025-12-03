@@ -14,6 +14,9 @@ private:
     CChartObjectButton m_btnQuickAdjustTP;
     CChartObjectButton m_btnImmediateMarket;
     
+    // ATR Display Label - ADD THIS
+    CChartObjectLabel m_lblATR;
+    
     bool m_monitoringEnabled;
     
     // Reference to trading engine
@@ -91,6 +94,30 @@ public:
         m_btnImmediateMarket.FontSize(9);
         ObjectSetInteger(0, "btnImmediateMarket", OBJPROP_BGCOLOR, COLOR_BUTTON_PURPLE);
         
+        y += BUTTON_SPACING;
+        
+        // Create ATR Display Label - Use ObjectSet functions
+        if(!m_lblATR.Create(0, "lblATR", 0, x, y))
+            return false;
+        
+        // Set label properties using ObjectSet functions
+        m_lblATR.Description("ATR: Loading...");
+        m_lblATR.Color(clrBlue);
+        m_lblATR.FontSize(9);
+        
+        // Set size and other properties using ObjectSet functions
+        ObjectSetInteger(0, "lblATR", OBJPROP_XSIZE, BUTTON_WIDTH);
+        ObjectSetInteger(0, "lblATR", OBJPROP_YSIZE, 20);
+        ObjectSetInteger(0, "lblATR", OBJPROP_ALIGN, ALIGN_LEFT);
+        ObjectSetInteger(0, "lblATR", OBJPROP_BGCOLOR, COLOR_PANEL_BACKGROUND);
+        ObjectSetInteger(0, "lblATR", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+        ObjectSetInteger(0, "lblATR", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, "lblATR", OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, "lblATR", OBJPROP_BACK, false);
+        
+        // Initial update of ATR display
+        UpdateATRDisplay();
+        
         return true;
     }
     
@@ -126,6 +153,11 @@ public:
                 m_tradingEngine.PlaceImmediateMarketOrder();
             }
         }
+        else if(id == CHARTEVENT_CHART_CHANGE)
+        {
+            // Update ATR when chart changes (timeframe, symbol, etc.)
+            UpdateATRDisplay();
+        }
     }
     
     void ToggleMarketMonitoring()
@@ -160,6 +192,37 @@ public:
             m_btnMonitorMarket.Description("Monitor Market - OFF");
             ObjectSetInteger(0, "btnMonitorMarket", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
         }
+        
+        // Also update ATR display
+        UpdateATRDisplay();
+    }
+    
+    // Updated UpdateATRDisplay method
+    void UpdateATRDisplay()
+    {
+        if(m_tradingEngine == NULL) 
+        {
+            m_lblATR.Description("ATR: No Engine");
+            return;
+        }
+        
+        // Get ATR from trading engine
+        double atrValue = m_tradingEngine.GetCurrentATR();
+        
+        // Format the ATR value for display
+        string atrText;
+        if(atrValue > 0)
+        {
+            // Show ATR in both price units and points
+            double atrPoints = atrValue / _Point;
+            atrText = StringFormat("ATR: %.5f (%d pts)", atrValue, (int)atrPoints);
+        }
+        else
+        {
+            atrText = "ATR: N/A";
+        }
+        
+        m_lblATR.Description(atrText);
     }
     
     void Cleanup()
@@ -169,5 +232,6 @@ public:
         m_btnQuickAdjustSL.Delete();
         m_btnQuickAdjustTP.Delete();
         m_btnImmediateMarket.Delete();
+        m_lblATR.Delete();  // Don't forget to delete the ATR label
     }
 };
