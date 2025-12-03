@@ -1,5 +1,3 @@
-![deepseek_mermaid_20251130_b1a726](https://github.com/user-attachments/assets/adf36a10-c260-4841-9dfa-ccd16212ec03)
-
 #Project RB19 - Advanced Trading Expert Advisor(EA)
 
 The trading signal generating module for this EA implements the following research:
