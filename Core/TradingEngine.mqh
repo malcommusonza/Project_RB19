@@ -90,6 +90,26 @@ public:
         }
     }
     
+    // NEW: Immediate placement of limit order when button is toggled ON
+    void ImmediatePlaceLimitOrder()
+    {
+        Print("Immediate limit order placement requested");
+        PlaceLimitOrder();
+    }
+    
+    // NEW: Cancel all limit orders (for when mode is turned OFF)
+    void CancelAllLimitOrders()
+    {
+        if(m_orderManager != NULL)
+        {
+            m_orderManager.CancelAllLimitOrders();
+        }
+        else
+        {
+            Print("Error: OrderManager not available for CancelAllLimitOrders");
+        }
+    }
+    
     void OnTick()
     {
         // Check for new bar
@@ -138,24 +158,29 @@ public:
         PlaceLimitOrder();
     }
     
-bool HasOpenPosition()
-{
-    // Remove this method and use OrderManager's version instead
-    if(m_orderManager != NULL)
+    bool HasOpenPosition()
     {
-        return m_orderManager.HasOpenPosition();
+        if(m_orderManager != NULL)
+        {
+            return m_orderManager.HasOpenPosition();
+        }
+        
+        // Fallback if OrderManager not available
+        int positions = PositionsTotal();
+        for(int i = 0; i < positions; i++)
+        {
+            if(m_positionInfo.SelectByIndex(i))
+            {
+                if(m_positionInfo.Magic() == m_magicNumber && 
+                   m_positionInfo.Symbol() == Symbol())
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
-    return false;
-}
-
-void CancelAllLimitOrders()
-{
-    // Remove this method and use OrderManager's version instead
-    if(m_orderManager != NULL)
-    {
-        m_orderManager.CancelAllLimitOrders();
-    }
-}    
+    
     void CheckMarketOrderConditions()
     {
         // First check if we already have a position

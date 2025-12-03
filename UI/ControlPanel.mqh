@@ -75,10 +75,10 @@ public:
         
         y += BUTTON_SPACING;
         
-        // Create "Mode: Enter on Pullback" button (renamed from Monitor Market)
+        // Create "Mode: Enter at M on IP" button (renamed from Monitor Market)
         if(!m_btnMarketMode.Create(0, "btnMarketMode", 0, x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
             return false;
-        m_btnMarketMode.Description("Mode: Enter on Pullback - OFF");
+        m_btnMarketMode.Description("Mode: Enter at M on IP - OFF");
         m_btnMarketMode.Color(COLOR_BUTTON_WHITE);
         m_btnMarketMode.FontSize(9);
         ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
@@ -165,13 +165,25 @@ public:
         {
             m_btnLimitMode.Description("Mode: Enter on Limit - ON");
             ObjectSetInteger(0, "btnLimitMode", OBJPROP_BGCOLOR, COLOR_BUTTON_GREEN);
-            Print("Limit order mode ENABLED");
+            Print("Limit order mode ENABLED - Placing immediate limit order");
+            
+            // Immediately place a limit order when turned ON
+            if(m_tradingEngine != NULL)
+            {
+                m_tradingEngine.ImmediatePlaceLimitOrder();
+            }
         }
         else
         {
             m_btnLimitMode.Description("Mode: Enter on Limit - OFF");
             ObjectSetInteger(0, "btnLimitMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
             Print("Limit order mode DISABLED");
+            
+            // Cancel any pending limit orders when turned OFF
+            if(m_tradingEngine != NULL)
+            {
+                m_tradingEngine.CancelAllLimitOrders();
+            }
         }
     }
     
@@ -181,13 +193,13 @@ public:
         
         if(m_marketModeEnabled)
         {
-            m_btnMarketMode.Description("Mode: Enter on Pullback - ON");
+            m_btnMarketMode.Description("Mode: Enter at M on IP - ON");
             ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_GREEN);
             Print("Market order mode ENABLED");
         }
         else
         {
-            m_btnMarketMode.Description("Mode: Enter on Pullback - OFF");
+            m_btnMarketMode.Description("Mode: Enter at M on IP - OFF");
             ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
             Print("Market order mode DISABLED");
         }
@@ -206,7 +218,7 @@ public:
         if(m_marketModeEnabled)
         {
             m_marketModeEnabled = false;
-            m_btnMarketMode.Description("Mode: Enter on Pullback - OFF");
+            m_btnMarketMode.Description("Mode: Enter at M on IP - OFF");
             ObjectSetInteger(0, "btnMarketMode", OBJPROP_BGCOLOR, COLOR_BUTTON_RED);
             Print("Market order mode turned OFF (position entered)");
         }
