@@ -138,52 +138,24 @@ public:
         PlaceLimitOrder();
     }
     
-    bool HasOpenPosition()
+bool HasOpenPosition()
+{
+    // Remove this method and use OrderManager's version instead
+    if(m_orderManager != NULL)
     {
-        // Check if there are any open positions with our magic number
-        int positions = PositionsTotal();
-        for(int i = 0; i < positions; i++)
-        {
-            if(m_positionInfo.SelectByIndex(i))
-            {
-                if(m_positionInfo.Magic() == m_magicNumber && 
-                   m_positionInfo.Symbol() == Symbol())
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return m_orderManager.HasOpenPosition();
     }
-    
-    void CancelAllLimitOrders()
+    return false;
+}
+
+void CancelAllLimitOrders()
+{
+    // Remove this method and use OrderManager's version instead
+    if(m_orderManager != NULL)
     {
-        // Cancel all pending orders with our magic number
-        int orders = OrdersTotal();
-        for(int i = orders - 1; i >= 0; i--)
-        {
-            // Get order ticket
-            ulong orderTicket = OrderGetTicket(i);
-            if(orderTicket > 0)
-            {
-                // Get order properties
-                if(m_orderInfo.Select(orderTicket))
-                {
-                    if(m_orderInfo.Magic() == m_magicNumber && 
-                       m_orderInfo.Symbol() == Symbol() &&
-                       (m_orderInfo.OrderType() == ORDER_TYPE_BUY_LIMIT || 
-                        m_orderInfo.OrderType() == ORDER_TYPE_SELL_LIMIT))
-                    {
-                        if(m_trade.OrderDelete(orderTicket))
-                        {
-                            Print("Cancelled previous limit order: ", orderTicket);
-                        }
-                    }
-                }
-            }
-        }
+        m_orderManager.CancelAllLimitOrders();
     }
-    
+}    
     void CheckMarketOrderConditions()
     {
         // First check if we already have a position
